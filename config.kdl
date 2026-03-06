@@ -1,0 +1,7 @@
+system {
+    name "Example Assembly"
+}
+
+instruction "load" {
+    names "load" "ld"
+}
