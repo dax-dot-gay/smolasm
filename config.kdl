@@ -1,6 +1,7 @@
 system {
     name "complxISA"
-    format "ritarch" {
+    format "ritarch"
+    hardware {
         address_size 8
         word_size 8
     }

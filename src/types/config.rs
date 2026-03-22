@@ -1,43 +1,29 @@
 use std::{
     collections::HashMap,
     fs,
-    ops::{Deref, DerefMut},
     path::Path
 };
 
-use kdl::{KdlDocument, KdlNode, KdlValue};
+use kdl::{KdlDocument, KdlNode};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(remote = "KdlValue")]
-pub enum KdlValueDef {
-    String(String),
-    Integer(i128),
-    Float(f64),
-    Bool(bool),
-    Null,
+pub struct SystemHardware {
+    pub address_size: u64,
+    pub word_size: u64
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(transparent)]
-pub struct KdlValueWrapper(#[serde(with = "KdlValueDef")] KdlValue);
-
-impl From<KdlValue> for KdlValueWrapper {
-    fn from(value: KdlValue) -> Self {
-        Self(value)
+impl SystemHardware {
+    fn arg_u64(doc: &KdlDocument, key: impl Into<String>) -> u64 {
+        let key = key.into();
+        doc.get(&key).expect(&format!("Expected a <{key}> node")).get(0).expect("Expected a single value!").as_integer().unwrap().try_into().unwrap()
     }
-}
-
-impl Deref for KdlValueWrapper {
-    type Target = KdlValue;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for KdlValueWrapper {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    pub(self) fn parse_hardware(doc: KdlNode) -> Self {
+        let children = doc.children().unwrap().clone();
+        Self { 
+            address_size: Self::arg_u64(&children, "address_size"), 
+            word_size: Self::arg_u64(&children, "word_size")
+        }
     }
 }
 
@@ -45,7 +31,7 @@ impl DerefMut for KdlValueWrapper {
 pub struct SystemConfig {
     pub name: String,
     pub format: String,
-    pub format_args: HashMap<String, KdlValueWrapper>,
+    pub hardware: SystemHardware
 }
 
 impl SystemConfig {
@@ -71,28 +57,12 @@ impl SystemConfig {
             .expect("<format> name should be a string")
             .to_string();
 
-        let mut format_args: HashMap<String, KdlValueWrapper> = HashMap::new();
-        for child in doc
-            .children()
-            .unwrap()
-            .get("format")
-            .unwrap()
-            .iter_children()
-        {
-            format_args.insert(
-                child.name().to_string(),
-                child
-                    .get(0)
-                    .expect("Expects a single argument")
-                    .clone()
-                    .into(),
-            );
-        }
+        let hardware = SystemHardware::parse_hardware(doc.children().unwrap().get("hardware").expect("Expected <hardware> child").clone());
 
         Self {
             name,
             format,
-            format_args,
+            hardware
         }
     }
 }
