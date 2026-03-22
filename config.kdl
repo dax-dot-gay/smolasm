@@ -102,8 +102,8 @@ field "imm" {
 
 instruction "rtype" {
     field value="$opcode" in=0 out=2
-    field value="$ra" in=1 out=1
-    field value="$addrmode=r0|r1" in=2 out=0
+    field value="$ra" in=1 out=1 default=0
+    field value="$addrmode=r0|r1" in=2 out=0 default=0
 }
 
 instruction "mtype" {

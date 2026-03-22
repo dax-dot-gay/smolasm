@@ -190,6 +190,7 @@ pub struct InstructionFieldConfig {
     pub value: String,
     pub index_in: u64,
     pub index_out: u64,
+    pub default: Option<u64>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -206,7 +207,8 @@ impl InstructionConfig {
                 InstructionFieldConfig { 
                     value: child.get("value").expect("<field> expects value=\"string\"").as_string().expect("<field>.value should be a string").to_string(), 
                     index_in: child.get("in").expect("<field> expects in=u64").as_integer().expect("<field>.in should be u64").try_into().unwrap(), 
-                    index_out: child.get("out").expect("<field> expects out=u64").as_integer().expect("<field>.out should be u64").try_into().unwrap()
+                    index_out: child.get("out").expect("<field> expects out=u64").as_integer().expect("<field>.out should be u64").try_into().unwrap(),
+                    default: child.get("default").map(|v| v.as_integer().unwrap().try_into().unwrap())
                 }
             } else {
                 panic!("Unknown child of instruction/{}: {}", name, child.name().to_string());
