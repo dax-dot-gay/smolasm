@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bitvec::prelude::*;
 use serde::{Deserialize, Serialize};
 

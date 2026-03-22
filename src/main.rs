@@ -4,6 +4,7 @@ use clap::Parser;
 
 pub mod types;
 pub mod cli;
+pub mod parser;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = cli::SmolASM::parse();
