@@ -9,7 +9,7 @@ pub struct DataBlock {
     pub start: usize,
     pub length: usize,
     pub align: bool,
-    pub entries: Vec<BitVec<u64, Msb0>>,
+    pub entries: Vec<(String, BitVec<u64, Msb0>)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -27,7 +27,7 @@ pub struct TextBlock {
     pub name: String,
     pub start: usize,
     pub length: usize,
-    pub instructions: Vec<Vec<InstructionField>>,
+    pub instructions: Vec<(String, Vec<InstructionField>)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
