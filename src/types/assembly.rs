@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use bitvec::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +7,7 @@ pub struct DataBlock {
     pub start: usize,
     pub length: usize,
     pub align: bool,
-    pub entries: Vec<(String, BitVec<u64, Msb0>)>,
+    pub entries: Vec<(String, BitVec<u8, Msb0>)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -18,7 +16,7 @@ pub struct InstructionField {
     pub input_index: u64,
     pub output_index: u64,
     pub asm_value: String,
-    pub raw_value: BitVec<u64, Msb0>,
+    pub raw_value: BitVec<u8, Msb0>,
     pub bits: u64,
 }
 
