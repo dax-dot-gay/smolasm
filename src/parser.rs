@@ -6,12 +6,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
     AssemblyBlock, BitArray, Config, DataBlock, InstructionField, TextBlock
 };
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Assembly {
     pub path: PathBuf,
@@ -240,9 +240,11 @@ impl Assembly {
         }
 
         for (_, bits) in instructions.clone() {
+            let mut instbits = 0u64;
             for field in bits {
-                total_length += field.bits;
+                instbits += field.bits;
             }
+            total_length += instbits.div_ceil(config.system.hardware.word_size);
         }
 
         let length = if length_str == "auto" {
@@ -343,7 +345,7 @@ impl Assembly {
                 } else if let Ok(number) = line.trim().parse::<u64>() {
                     entries.push((
                         line.trim().to_string(),
-                        BitArray::from_slice(&number.to_be_bytes()),
+                        BitArray::from_slice(&number.to_be_bytes()).truncate(&config),
                     ));
                 } else if line.trim().len() == 0 || line.trim().starts_with("//") {
                     continue;
@@ -356,9 +358,7 @@ impl Assembly {
         }
 
         for (_, bits) in entries.clone() {
-            total_length += u64::try_from(bits.len())
-                .unwrap()
-                .div_ceil(config.system.hardware.word_size);
+            total_length += bits.len_words(&config);
         }
 
         let length = if length_str == "auto" {
@@ -401,7 +401,7 @@ impl Assembly {
         }
     }
 
-    pub fn parse(input_file: impl AsRef<Path>, config: Config) {
+    pub fn parse(input_file: impl AsRef<Path>, config: Config) -> Self {
         let path = input_file.as_ref().to_path_buf();
         let mut input = BufReader::new(
             File::open(path.clone())
@@ -429,10 +429,8 @@ impl Assembly {
                         &config,
                         &mut state,
                     );
-                    println!(
-                        "DATA:\n\n{}\n",
-                        serde_json::to_string_pretty(&block).unwrap()
-                    );
+                    blocks.push(AssemblyBlock::Data(block.clone()));
+                    block_map.insert(block.name.clone(), blocks.len() - 1);
                 } else if trimmed.starts_with(".text") {
                     let block = Self::parse_text_block(
                         trimmed.to_string(),
@@ -440,15 +438,59 @@ impl Assembly {
                         &config,
                         &mut state,
                     );
-                    println!(
-                        "TEXT:\n\n{}\n",
-                        serde_json::to_string_pretty(&block).unwrap()
-                    );
+                    blocks.push(AssemblyBlock::Text(block.clone()));
+                    block_map.insert(block.name.clone(), blocks.len() - 1);
                 } else {
                     panic!("Unknown top-level item {trimmed}");
                 }
             } else {
                 break;
+            }
+        }
+
+        Self { path, config, blocks, block_map }
+    }
+
+    pub fn analyze(&self, config_path: String) {
+        println!("{} {}", "Currently Analyzing:".bold().bright_white(), self.path.clone().to_string_lossy().to_string());
+        println!("{} {}", "Config:".bold().bright_white(), config_path.clone());
+        println!("{}", "Blocks:".bold().bright_white());
+        for block in self.blocks.clone() {
+            match block {
+                AssemblyBlock::Data(DataBlock { name, start, length, entries }) => {
+                    println!("        {}{} @ {:#x}..{:#x}: {} words {} {{", "DATA/".bold(), name, start, start + (length - 1), length, "(inclusive)".dimmed());
+                    if entries.len() > 0 {
+                        let mut offset = 0u64;
+                        for (entry_text, entry) in entries {
+                            println!("                {offset:#0x}: {} - {} words {}", entry_text.escape_default(), entry.len_words(&self.config), format!("({})", entry.to_hex()).dimmed());
+                            offset += entry.len_words(&self.config);
+                        }
+                    } else {
+                        println!("                {}", "<empty>".dimmed());
+                    }
+                    println!("        }}");
+                },
+                AssemblyBlock::Text(TextBlock { name, start, length, instructions }) => {
+                    if name == String::from("main") {
+                        println!("{} {}{} @ {:#x}..{:#x}: {} words {} {{", "(entry)".dimmed(), "TEXT/".bold(), name, start, start + (length - 1), length, "(inclusive)".dimmed());
+                    } else {
+                        println!("        {}{} @ {:#x}..{:#x}: {} words {} {{", "TEXT/".bold(), name, start, start + (length - 1), length, "(inclusive)".dimmed());
+                    }
+                    if instructions.len() > 0 {
+                        let mut offset = 0u64;
+                        for (inst_text, fields) in instructions {
+                            let mut joined = BitArray::default();
+                            for field in fields {
+                                joined.extend(field.raw_value.into_inner());
+                            }
+                            println!("                {offset:#0x}: {} - {} words {}", inst_text, joined.len_words(&self.config), format!("({})", joined.to_hex()).dimmed());
+                            offset += joined.len_words(&self.config);
+                        }
+                    } else {
+                        println!("                {}", "<empty>".dimmed());
+                    }
+                    println!("        }}");
+                },
             }
         }
     }

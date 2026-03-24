@@ -1,6 +1,8 @@
-use std::ops::{Deref, DerefMut};
+use std::{fmt::Display, ops::{Deref, DerefMut}};
 
 use serde::{Deserialize, Serialize};
+
+use crate::types::Config;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DataBlock {
@@ -34,7 +36,7 @@ pub enum AssemblyBlock {
     Text(TextBlock),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(try_from = "String", into = "String")]
 pub struct BitArray(Vec<bool>);
 
@@ -49,7 +51,7 @@ impl BitArray {
 
     pub fn from_slice(slice: impl AsRef<[u8]>) -> Self {
         let slice = slice.as_ref().to_vec();
-        Self(slice.into_iter().flat_map(|byt| format!("{byt:b}").chars().map(|v| v == '1').collect::<Vec<bool>>()).collect())
+        Self(slice.into_iter().flat_map(|byt| format!("{byt:08b}").chars().map(|v| v == '1').collect::<Vec<bool>>()).collect())
     }
 
     pub fn trimmed(self, bits: usize) -> Self {
@@ -61,6 +63,64 @@ impl BitArray {
             }
         }
         Self(trim)
+    }
+
+    pub fn truncate(self, config: &Config) -> Self {
+        if u64::try_from(self.len()).unwrap() < config.system.hardware.word_size {
+            return self;
+        }
+        let mut inner = self.into_inner();
+        loop {
+            let mut empty = true;
+            for i in &inner.clone()[..usize::try_from(config.system.hardware.word_size).unwrap()] {
+                if *i {
+                    empty = false;
+                }
+            }
+
+            if empty {
+                inner = inner[usize::try_from(config.system.hardware.word_size).unwrap()..].to_vec();
+            } else {
+                break;
+            }
+        }
+        let out = Self(inner);
+        out.trimmed(usize::try_from(config.system.hardware.word_size).unwrap())
+    }
+
+    pub fn len_aligned(&self, config: &Config) -> u64 {
+        u64::try_from(self.0.len()).unwrap().div_ceil(config.system.hardware.word_size) * config.system.hardware.word_size
+    }
+
+    pub fn len_words(&self, config: &Config) -> u64 {
+        u64::try_from(self.0.len()).unwrap().div_ceil(config.system.hardware.word_size)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut ptr = 0usize;
+        let mut output: Vec<u8> = vec![];
+        while ptr < self.len() {
+            let mut value = 0u8;
+            for bit in 0..8u8 {
+                if self.0.get(ptr).is_some_and(|v| *v) {
+                    value |= 1 << (7 - bit);
+                }
+                ptr += 1;
+            }
+            output.push(value);
+        }
+
+        output
+    }
+
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.to_bytes())
+    }
+}
+
+impl Display for BitArray {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(String::from(self.clone()).as_str())
     }
 }
 
