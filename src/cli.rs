@@ -6,7 +6,7 @@ pub enum Actions {
     Analyze,
 
     /// Generate machine code based on the input file and config
-    Assemble {
+    Asm {
         /// An alternate name for the output file (defaults to "<input name>.obj")
         #[arg(short, long)]
         output: Option<String>,

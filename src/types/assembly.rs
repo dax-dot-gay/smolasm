@@ -71,15 +71,20 @@ impl BitArray {
         }
         let mut inner = self.into_inner();
         loop {
+            if inner.len() <= usize::try_from(config.system.hardware.word_size).unwrap() {
+                break;
+            }
             let mut empty = true;
-            for i in &inner.clone()[..usize::try_from(config.system.hardware.word_size).unwrap()] {
-                if *i {
+            for i in 0..(usize::try_from(config.system.hardware.word_size).unwrap()) {
+                if inner.get(i).is_some_and(|v| *v) {
                     empty = false;
                 }
             }
 
             if empty {
-                inner = inner[usize::try_from(config.system.hardware.word_size).unwrap()..].to_vec();
+                inner.reverse();
+                inner.truncate(usize::try_from(config.system.hardware.word_size).unwrap());
+                inner.reverse();
             } else {
                 break;
             }
@@ -115,6 +120,21 @@ impl BitArray {
 
     pub fn to_hex(&self) -> String {
         hex::encode(self.to_bytes())
+    }
+
+    pub fn to_chunks(&self, chunksize: u64) -> Vec<BitArray> {
+        let mut result = Vec::new();
+        let mut idx = 0usize;
+        while idx < self.len() {
+            let mut chunk = BitArray::default();
+            for _ in 0..chunksize {
+                chunk.push(self.get(idx).cloned().unwrap_or(false));
+                idx += 1;
+            }
+            result.push(chunk);
+        }
+
+        result
     }
 }
 
