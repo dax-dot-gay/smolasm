@@ -27,7 +27,7 @@ impl OutputFormatter for RitArch {
                                 format!(
                                     "{} {} {}\n",
                                     offset_bits.to_hex(),
-                                    length_bits.to_hex(),
+                                    length_bits.to_hex().trim_start_matches("0"),
                                     chunks
                                         .into_iter()
                                         .map(|v| v.to_hex())
@@ -53,7 +53,9 @@ impl OutputFormatter for RitArch {
                     let mut offset = 0u64;
                     for (_, fields) in instructions {
                         let mut joined = BitArray::default();
-                        for field in fields {
+                        let mut sorted_fields = fields.clone();
+                        sorted_fields.sort_by_key(|f| f.output_index);
+                        for field in sorted_fields {
                             joined.extend(field.raw_value.into_inner());
                         }
                         let chunks =
@@ -67,7 +69,7 @@ impl OutputFormatter for RitArch {
                                 format!(
                                     "{} {} {}\n",
                                     offset_bits.to_hex(),
-                                    length_bits.to_hex(),
+                                    length_bits.to_hex().trim_start_matches("0"),
                                     chunks
                                         .into_iter()
                                         .map(|v| v.to_hex())

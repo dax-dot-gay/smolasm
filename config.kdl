@@ -80,7 +80,7 @@ field "opcode" {
         name "blt"
     }
     variant 0b1010 {
-        name "nop"
+        name "nop1"
     }
     variant 0b1011 {
         name "clr"
@@ -94,6 +94,9 @@ field "opcode" {
     variant 0b1110 {
         name "dmp"
     }
+    variant 0b1111 {
+        name "nop2"
+    }
 }
 
 field "imm" {
@@ -104,12 +107,14 @@ field "imm" {
 instruction "rtype" {
     field value="opcode" in=0 out=2
     field value="ra" in=1 out=1 default=0
-    field value="addrmode=r0|r1" in=2 out=0 default=0
+    //field value="addrmode=r0|r1" in=2 out=0 default=0
+    field value="addrmode" in=2 out=0 default=0
 }
 
 instruction "mtype" {
     field value="opcode" in=0 out=2
     field value="ra" in=1 out=1
-    field value="addrmode=d0|d1|imm|abs|pcr" in=2 out=0
+    //field value="addrmode=d0|d1|imm|abs|pcr" in=2 out=0
+    field value="addrmode" in=2 out=0
     field value="imm" in=3 out=3
 }
