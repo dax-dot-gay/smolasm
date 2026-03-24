@@ -1,5 +1,5 @@
-// Input data, individual sections are word-aligned
-.data input-data 0x0..auto align
+// Input data
+.data input-data 0x0..auto
     "test data"
     """multiline
     string goes
@@ -8,7 +8,7 @@
     27
     0b10001
 
-// Array storage, starts at next available word and extends for 32 words. No initial data, so not automatically aligned.
+// Array storage, starts at next available word and extends for 32 words.
 .data storage auto..32
 
 // Entrypoint

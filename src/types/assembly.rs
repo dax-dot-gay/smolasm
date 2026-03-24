@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DataBlock {
     pub name: String,
-    pub start: usize,
-    pub length: usize,
-    pub align: bool,
+    pub start: u64,
+    pub length: u64,
     pub entries: Vec<(String, BitVec<u8, Msb0>)>,
 }
 
@@ -23,8 +22,8 @@ pub struct InstructionField {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TextBlock {
     pub name: String,
-    pub start: usize,
-    pub length: usize,
+    pub start: u64,
+    pub length: u64,
     pub instructions: Vec<(String, Vec<InstructionField>)>,
 }
 
