@@ -1,0 +1,120 @@
+system {
+    name "complxISA"
+    format "ritarch"
+    hardware {
+        address_size 8
+        word_size 8
+    }
+}
+
+field "addrmode" {
+    type "enum"
+    bits 3
+    variant 0b000 {
+        name "r0"
+    }
+    variant 0b001 {
+        name "r1"
+    }
+    variant 0b010 {
+        name "d0"
+    }
+    variant 0b011 {
+        name "d1"
+    }
+    variant 0b100 {
+        name "imm"
+    }
+    variant 0b101 {
+        name "abs"
+    }
+    variant 0b110 {
+        name "pcr"
+    }
+}
+
+field "ra" {
+    type "enum"
+    bits 1
+    variant 0b0 {
+        name "r0"
+        alias "0"
+    }
+    variant 0b1 {
+        name "r1"
+        alias "1"
+    }
+}
+
+field "opcode" {
+    type "enum"
+    bits 4
+    variant 0b0000 {
+        name "hlt"
+    }
+    variant 0b0001 {
+        name "add"
+    }
+    variant 0b0010 {
+        name "and"
+    }
+    variant 0b0011 {
+        name "sra"
+    }
+    variant 0b0100 {
+        name "sll"
+    }
+    variant 0b0101 {
+        name "ldr"
+    }
+    variant 0b0110 {
+        name "str"
+    }
+    variant 0b0111 {
+        name "jmp"
+    }
+    variant 0b1000 {
+        name "bez"
+    }
+    variant 0b1001 {
+        name "blt"
+    }
+    variant 0b1010 {
+        name "nop1"
+    }
+    variant 0b1011 {
+        name "clr"
+    }
+    variant 0b1100 {
+        name "cmp"
+    }
+    variant 0b1101 {
+        name "inc"
+    }
+    variant 0b1110 {
+        name "dmp"
+    }
+    variant 0b1111 {
+        name "nop2"
+    }
+}
+
+field "imm" {
+    type "raw"
+    bits 8
+}
+
+instruction "rtype" {
+    field value="opcode" in=0 out=2
+    field value="ra" in=1 out=1 default=0
+    //field value="addrmode=r0|r1" in=2 out=0 default=0
+    field value="addrmode" in=2 out=0 default=0
+}
+
+instruction "mtype" {
+    field value="opcode" in=0 out=2
+    field value="ra" in=1 out=1
+    //field value="addrmode=d0|d1|imm|abs|pcr" in=2 out=0
+    field value="addrmode" in=2 out=0
+    field value="imm" in=3 out=3
+}

@@ -1,94 +1,229 @@
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path
+};
+
+use kdl::{KdlDocument, KdlNode};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
-use crate::types::ByteString;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsmFieldMeta {
-    pub name: String,
-    pub size: u64,
-
-    #[serde(default)]
-    pub comment: Option<String>,
+pub struct SystemHardware {
+    pub address_size: u64,
+    pub word_size: u64
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum ImmediateKind {
-    #[default]
-    Bytes,
-    SignedInt,
-    UnsignedInt,
-    SignedFloat,
-    UnsignedFloat,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct EnumOption {
-    pub discriminator: ByteString,
-    pub aliases: Vec<String>,
-    pub comment: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct OpCode {
-    pub code: ByteString,
-    pub aliases: Vec<String>,
-    pub comment: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum AsmField {
-    #[serde(alias = "raw", alias = "imm")]
-    Immediate {
-        meta: AsmFieldMeta,
-
-        #[serde(default)]
-        kind: ImmediateKind,
-    },
-    #[serde(alias = "addr")]
-    Address { meta: AsmFieldMeta },
-    #[serde(alias = "enum")]
-    Enumerator {
-        meta: AsmFieldMeta,
-        values: HashMap<ByteString, EnumOption>,
-    },
-    #[serde(alias = "opc", alias = "code", alias = "instruction")]
-    Opcode {
-        meta: AsmFieldMeta,
-        values: HashMap<ByteString, OpCode>,
-    },
-}
-
-impl AsmField {
-    pub fn meta(&self) -> AsmFieldMeta {
-        match self {
-            AsmField::Immediate { meta, .. } => meta.clone(),
-            AsmField::Address { meta } => meta.clone(),
-            AsmField::Enumerator { meta, .. } => meta.clone(),
-            AsmField::Opcode { meta, .. } => meta.clone(),
+impl SystemHardware {
+    fn arg_u64(doc: &KdlDocument, key: impl Into<String>) -> u64 {
+        let key = key.into();
+        doc.get(&key).expect(&format!("Expected a <{key}> node")).get(0).expect("Expected a single value!").as_integer().unwrap().try_into().unwrap()
+    }
+    pub(self) fn parse_hardware(doc: KdlNode) -> Self {
+        let children = doc.children().unwrap().clone();
+        Self { 
+            address_size: Self::arg_u64(&children, "address_size"), 
+            word_size: Self::arg_u64(&children, "word_size")
         }
     }
+}
 
-    pub fn name(&self) -> String {
-        self.meta().name
-    }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SystemConfig {
+    pub name: String,
+    pub format: String,
+    pub hardware: SystemHardware
+}
 
-    pub fn size(&self) -> u64 {
-        self.meta().size
-    }
+impl SystemConfig {
+    pub(self) fn parse(doc: KdlNode) -> Self {
+        let name = doc
+            .children()
+            .expect("<system> requires children")
+            .get("name")
+            .expect("<system> requires a <name> entry")
+            .get(0)
+            .expect("<name> requires a single argument")
+            .as_string()
+            .expect("<name> should be a string")
+            .to_string();
+        let format = doc
+            .children()
+            .unwrap()
+            .get("format")
+            .expect("<system> requires a <format> entry")
+            .get(0)
+            .expect("<format> requires a name argument")
+            .as_string()
+            .expect("<format> name should be a string")
+            .to_string();
 
-    pub fn comment(&self) -> Option<String> {
-        self.meta().comment
+        let hardware = SystemHardware::parse_hardware(doc.children().unwrap().get("hardware").expect("Expected <hardware> child").clone());
+
+        Self {
+            name,
+            format,
+            hardware
+        }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsmConfig {
-    pub output_format: crate::formats::OutputFormat,
-    pub word_size: u64,
+pub struct VariantConfig {
+    pub variant: u64,
+    pub name: String,
+    pub alias: Vec<String>,
+}
 
-    #[serde(default)]
-    pub fields: HashMap<String, AsmField>,
+impl VariantConfig {
+    pub(self) fn parse_variant(doc: KdlNode) -> Self {
+        let variant: u64 = doc
+            .get(0)
+            .expect("<variant> expects a single argument")
+            .as_integer()
+            .expect("The <variant> discriminator should be an unsigned integer")
+            .try_into()
+            .expect("The <variant> discriminator should fit within a u64");
+        let name: String = doc.children().expect("<variant> should have children").get("name").expect("<variant> requires exactly one <name> child").get(0).expect("<name> requires a single argument").as_string().expect("<name> should be a string").to_string();
+        let mut alias: Vec<String> = Vec::new();
+        for child in doc.iter_children() {
+            match child.name().to_string().as_str() {
+                "name" => (),
+                "alias" => alias.push(child.get(0).expect("<alias> requires a single argument").as_string().expect("<alias> should be a string").to_string()),
+                other => panic!("Unknown child node of <variant>: {}", other)
+            }
+        }
+
+        Self {
+            variant, name, alias
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum FieldType {
+    Enum(HashMap<u64, VariantConfig>),
+    Raw,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FieldConfig {
+    pub name: String,
+    pub bits: u64,
+    pub field_type: FieldType,
+}
+
+impl FieldConfig {
+    pub(self) fn parse_field(doc: KdlNode) -> Self {
+        let name = doc
+            .get(0)
+            .expect("<field> needs a name argument")
+            .as_string()
+            .unwrap()
+            .to_string();
+        let children = doc.children().expect("<field> requires children").clone();
+        let bits: u64 = children
+            .get("bits")
+            .expect("<field> requires <bits> child")
+            .get(0)
+            .expect("<bits> requires a single numerical argument")
+            .as_integer()
+            .unwrap()
+            .try_into()
+            .expect("<bits> should fit within a u64");
+        let field_type_str = children
+            .get("type")
+            .expect("<field> requires <type> child")
+            .get(0)
+            .expect("<type> requires either 'enum' or 'raw'")
+            .as_string()
+            .unwrap()
+            .to_string();
+        let field_type = match field_type_str.as_str() {
+            "enum" => FieldType::Enum(doc.iter_children().filter_map(|child| if child.name().to_string() == String::from("variant") {
+                let parsed = VariantConfig::parse_variant(child.clone());
+                Some((parsed.variant, parsed))
+            } else {None}).collect()),
+            "raw" => FieldType::Raw,
+            other => panic!("Unknown field type \"{}\"", other),
+        };
+
+        Self {
+            name,
+            bits,
+            field_type,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct InstructionFieldConfig {
+    pub value: String,
+    pub index_in: u64,
+    pub index_out: u64,
+    pub default: Option<u64>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct InstructionConfig {
+    pub name: String,
+    pub fields: Vec<InstructionFieldConfig>,
+}
+
+impl InstructionConfig {
+    pub(self) fn parse_instruction(doc: KdlNode) -> Self {
+        let name = doc.get(0).expect("<instruction> requires a single argument").as_string().expect("<instruction> should have a single string argument").to_string();
+        let fields: Vec<InstructionFieldConfig> = doc.iter_children().cloned().map(|child| {
+            if child.name().to_string().as_str() == "field" {
+                InstructionFieldConfig { 
+                    value: child.get("value").expect("<field> expects value=\"string\"").as_string().expect("<field>.value should be a string").to_string(), 
+                    index_in: child.get("in").expect("<field> expects in=u64").as_integer().expect("<field>.in should be u64").try_into().unwrap(), 
+                    index_out: child.get("out").expect("<field> expects out=u64").as_integer().expect("<field>.out should be u64").try_into().unwrap(),
+                    default: child.get("default").map(|v| v.as_integer().unwrap().try_into().unwrap())
+                }
+            } else {
+                panic!("Unknown child of instruction/{}: {}", name, child.name().to_string());
+            }
+        }).collect();
+        Self { name, fields }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Config {
+    pub system: SystemConfig,
+    pub fields: HashMap<String, FieldConfig>,
+    pub instructions: HashMap<String, InstructionConfig>,
+}
+
+impl Config {
+    pub fn load_config(path: impl AsRef<Path>) -> Result<Self, kdl::KdlError> {
+        let content = fs::read_to_string(path).expect("Failed to open file at specified path.");
+        let parsed: KdlDocument = content.parse()?;
+        let system = SystemConfig::parse(
+            parsed
+                .get("system")
+                .expect("Requires <system> node")
+                .clone(),
+        );
+
+        let mut fields: HashMap<String, FieldConfig> = HashMap::new();
+        let mut instructions: HashMap<String, InstructionConfig> = HashMap::new();
+
+        for child in parsed.into_iter() {
+            match child.name().to_string().as_str() {
+                "system" => (),
+                "field" => {
+                    let parsed = FieldConfig::parse_field(child);
+                    let _ = fields.insert(parsed.name.clone(), parsed);
+                },
+                "instruction" => {
+                    let parsed = InstructionConfig::parse_instruction(child);
+                    let _ = instructions.insert(parsed.name.clone(), parsed);
+                },
+                other => panic!("Unknown top-level node: \"{other}\"")
+            }
+        }
+
+        Ok(Self { system, fields, instructions })
+    }
 }
