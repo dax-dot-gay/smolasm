@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli::Actions::Asm { output } => formats::assemble(
             assembled,
             output.unwrap_or(format!(
-                "{}.out",
+                "{}.obj",
                 Path::new(&cli.input.clone())
                     .file_stem()
                     .unwrap()
