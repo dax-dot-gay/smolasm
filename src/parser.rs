@@ -18,12 +18,14 @@ pub struct Assembly {
     pub config: Config,
     pub blocks: Vec<AssemblyBlock>,
     pub block_map: HashMap<String, usize>,
+    pub label_map: HashMap<String, u64>
 }
 
 #[derive(Debug)]
 struct State {
     pub pointer: u64,
     pub allocated: Vec<u64>,
+    pub labels: HashMap<String, u64>
 }
 
 impl Default for State {
@@ -31,6 +33,7 @@ impl Default for State {
         Self {
             pointer: 0,
             allocated: Vec::new(),
+            labels: HashMap::new()
         }
     }
 }
@@ -142,7 +145,8 @@ impl Assembly {
                                                 input_index: target_format.index_in,
                                                 output_index: target_format.index_out,
                                                 asm_value: field.clone(),
-                                                raw_value: BitArray::from_slice(&discriminator.to_be_bytes()).trimmed(usize::try_from(selected_field.bits).unwrap()),
+                                                raw_value: Some(BitArray::from_slice(&discriminator.to_be_bytes()).trimmed(usize::try_from(selected_field.bits).unwrap())),
+                                                reference_value: None,
                                                 bits: selected_field.bits,
                                             });
                                         } else {
@@ -159,14 +163,38 @@ impl Assembly {
 
                                     let ivec =
                                         processing_formats.get_mut(&format_name).unwrap();
-                                    ivec.push(InstructionField {
-                                        format: target_format.value.clone(),
-                                        input_index: target_format.index_in,
-                                        output_index: target_format.index_out,
-                                        asm_value: field.clone(),
-                                        raw_value: Self::get_bits(field.clone(), usize::try_from(selected_field.bits).unwrap()),
-                                        bits: selected_field.bits,
-                                    });
+                                    
+                                    if field.starts_with("@") {
+                                        let trimmed_label = field.trim_matches('@').to_string();
+                                        let (label, offset) = if trimmed_label.contains("+") {
+                                            let (_label, _offset) = trimmed_label.split_once("+").unwrap();
+                                            (_label.to_string(), _offset.parse::<i64>().expect("Offset should be a valid integer").abs())
+                                        } else if trimmed_label.contains("-") {
+                                            let (_label, _offset) = trimmed_label.split_once("-").unwrap();
+                                            (_label.to_string(), _offset.parse::<i64>().expect("Offset should be a valid integer").abs() * -1)
+                                        } else {
+                                            (trimmed_label.to_string(), 0)
+                                        };
+                                        ivec.push(InstructionField {
+                                            format: target_format.value.clone(),
+                                            input_index: target_format.index_in,
+                                            output_index: target_format.index_out,
+                                            asm_value: field.clone(),
+                                            raw_value: None,
+                                            reference_value: Some((label, offset)),
+                                            bits: selected_field.bits,
+                                        });
+                                    } else {
+                                        ivec.push(InstructionField {
+                                            format: target_format.value.clone(),
+                                            input_index: target_format.index_in,
+                                            output_index: target_format.index_out,
+                                            asm_value: field.clone(),
+                                            raw_value: Some(Self::get_bits(field.clone(), usize::try_from(selected_field.bits).unwrap())),
+                                            reference_value: None,
+                                            bits: selected_field.bits,
+                                        });
+                                    }
                                 }
                             }
                         } else {
@@ -211,7 +239,8 @@ impl Assembly {
                                         input_index: field.index_in,
                                         output_index: field.index_out,
                                         asm_value: format!("{default}"),
-                                        raw_value: Self::get_bits(format!("{default}"), usize::try_from(selected_field.bits).unwrap()),
+                                        raw_value: Some(Self::get_bits(format!("{default}"), usize::try_from(selected_field.bits).unwrap())),
+                                        reference_value: None,
                                         bits: selected_field.bits,
                                     })
                                 } else {
@@ -279,6 +308,7 @@ impl Assembly {
         }
 
         state.pointer += length;
+        let _ = state.labels.insert(name.clone(), start);
 
         TextBlock {
             name,
@@ -393,6 +423,8 @@ impl Assembly {
         }
 
         state.pointer += length;
+        let _ = state.labels.insert(name.clone(), start);
+
         DataBlock {
             name,
             start,
@@ -448,7 +480,7 @@ impl Assembly {
             }
         }
 
-        Self { path, config, blocks, block_map }
+        Self { path, config, blocks, block_map, label_map: state.labels }
     }
 
     pub fn analyze(&self, config_path: String) {
@@ -462,7 +494,7 @@ impl Assembly {
                     if entries.len() > 0 {
                         let mut offset = 0u64;
                         for (entry_text, entry) in entries {
-                            println!("                {offset:#0x}: {} - {} words {}", entry_text.escape_default(), entry.len_words(&self.config), format!("({})", entry.to_hex()).dimmed());
+                            println!("                {:#0x}: {} - {} words {}", start + offset, entry_text.escape_default(), entry.len_words(&self.config), format!("({})", entry.to_hex()).dimmed());
                             offset += entry.len_words(&self.config);
                         }
                     } else {
@@ -481,9 +513,9 @@ impl Assembly {
                         for (inst_text, fields) in instructions {
                             let mut joined = BitArray::default();
                             for field in fields {
-                                joined.extend(field.raw_value.into_inner());
+                                joined.extend(field.resolve_value(self.clone()).into_inner());
                             }
-                            println!("                {offset:#0x}: {} - {} words {}", inst_text, joined.len_words(&self.config), format!("({})", joined.to_hex()).dimmed());
+                            println!("                {:#0x}: {} - {} words {}", start + offset, inst_text, joined.len_words(&self.config), format!("({})", joined.to_hex()).dimmed());
                             offset += joined.len_words(&self.config);
                         }
                     } else {

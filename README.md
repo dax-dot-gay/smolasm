@@ -120,8 +120,10 @@ All assembly programs for `smolasm` follow the same format, though their instruc
 // Text block
 // Header format is identical to above.
 // Each instruction is automatically aligned to word boundaries
+// Immediate/raw fields can also be replaced with @<label>+/-offset, which will return the absolute address of that label (if it exists)
 .text <name> <start|auto>..<length|auto>
     add 1 1
+    jmp @other_block
     ...
 ```
 
