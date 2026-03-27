@@ -28,10 +28,10 @@ impl ConfigError {
 
 #[derive(Error, Debug)]
 pub enum SmolError {
-    #[error("An unhandled error occurred: {0:?}")]
+    #[error("An unhandled error occurred:\n\t:: {0:?}")]
     Unknown(#[from] anyhow::Error),
 
-    #[error("Configuration error: {0}")]
+    #[error("Configuration error:\n\t:: {0}")]
     Configuration(ConfigError),
 }
 

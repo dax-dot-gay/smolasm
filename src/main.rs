@@ -1,6 +1,7 @@
-use std::{error::Error, path::Path};
+use std::path::Path;
 
 use clap::Parser;
+use colored::Colorize;
 
 use crate::parser::Assembly;
 
@@ -11,7 +12,7 @@ pub mod types;
 pub mod error;
 pub use error::*;
 
-fn main() -> std::result::Result<(), Box<dyn Error>> {
+fn main_internal() -> crate::Result<()> {
     let cli = cli::SmolASM::parse();
     let config = types::Config::load_config(cli.config.clone())?;
     let assembled = Assembly::parse(cli.input.clone(), config);
@@ -31,4 +32,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         ),
     }
     Ok(())
+}
+
+fn main() -> () {
+    match main_internal() {
+        Ok(_) => (),
+        Err(e) => println!("{}\t{e}", "Error:".bright_red().bold())
+    }
 }
