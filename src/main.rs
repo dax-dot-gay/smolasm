@@ -8,8 +8,10 @@ pub mod cli;
 pub mod formats;
 pub mod parser;
 pub mod types;
+pub mod error;
+pub use error::*;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> std::result::Result<(), Box<dyn Error>> {
     let cli = cli::SmolASM::parse();
     let config = types::Config::load_config(cli.config.clone())?;
     let assembled = Assembly::parse(cli.input.clone(), config);
