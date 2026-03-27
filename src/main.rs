@@ -15,7 +15,7 @@ pub use error::*;
 fn main_internal() -> crate::Result<()> {
     let cli = cli::SmolASM::parse();
     let config = types::Config::load_config(cli.config.clone())?;
-    let assembled = Assembly::parse(cli.input.clone(), config);
+    let assembled = Assembly::parse(cli.input.clone(), config)?;
 
     match cli.action.clone() {
         cli::Actions::Analyze => assembled.analyze(cli.config.clone()),
