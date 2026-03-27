@@ -1,8 +1,11 @@
-use std::{fmt::Display, ops::{Deref, DerefMut}};
+use std::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::Config;
+use crate::{parser::Assembly, types::Config};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DataBlock {
@@ -21,6 +24,26 @@ pub struct InstructionField {
     pub raw_value: Option<BitArray>,
     pub reference_value: Option<(String, i64)>,
     pub bits: u64,
+}
+
+impl InstructionField {
+    pub fn resolve_value(&self, assembly: Assembly) -> BitArray {
+        if let Some(raw_value) = self.raw_value.clone() {
+            raw_value
+        } else if let Some((label, offset)) = self.reference_value.clone() {
+            if let Some(addr) = assembly.label_map.get(&label).cloned() {
+                BitArray::from_slice(
+                    &(i64::try_from(addr).unwrap() + offset)
+                        .clamp(0, 2i64.pow(self.bits.try_into().unwrap()))
+                        .to_be_bytes(),
+                ).trimmed(self.bits.try_into().unwrap())
+            } else {
+                panic!("Unknown label: {label}");
+            }
+        } else {
+            panic!("NO VALUE SPECIFIED, ASSEMBLER ERROR!");
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -52,7 +75,17 @@ impl BitArray {
 
     pub fn from_slice(slice: impl AsRef<[u8]>) -> Self {
         let slice = slice.as_ref().to_vec();
-        Self(slice.into_iter().flat_map(|byt| format!("{byt:08b}").chars().map(|v| v == '1').collect::<Vec<bool>>()).collect())
+        Self(
+            slice
+                .into_iter()
+                .flat_map(|byt| {
+                    format!("{byt:08b}")
+                        .chars()
+                        .map(|v| v == '1')
+                        .collect::<Vec<bool>>()
+                })
+                .collect(),
+        )
     }
 
     pub fn trimmed(self, bits: usize) -> Self {
@@ -95,11 +128,16 @@ impl BitArray {
     }
 
     pub fn len_aligned(&self, config: &Config) -> u64 {
-        u64::try_from(self.0.len()).unwrap().div_ceil(config.system.hardware.word_size) * config.system.hardware.word_size
+        u64::try_from(self.0.len())
+            .unwrap()
+            .div_ceil(config.system.hardware.word_size)
+            * config.system.hardware.word_size
     }
 
     pub fn len_words(&self, config: &Config) -> u64 {
-        u64::try_from(self.0.len()).unwrap().div_ceil(config.system.hardware.word_size)
+        u64::try_from(self.0.len())
+            .unwrap()
+            .div_ceil(config.system.hardware.word_size)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -166,7 +204,7 @@ impl TryFrom<String> for BitArray {
             match ch {
                 '0' => result.push(false),
                 '1' => result.push(true),
-                other => return Err(format!("Invalid binary character {other}"))
+                other => return Err(format!("Invalid binary character {other}")),
             }
         }
 
@@ -176,6 +214,10 @@ impl TryFrom<String> for BitArray {
 
 impl From<BitArray> for String {
     fn from(value: BitArray) -> Self {
-        value.into_inner().into_iter().map(|v| if v {'1'} else {'0'}).collect()
+        value
+            .into_inner()
+            .into_iter()
+            .map(|v| if v { '1' } else { '0' })
+            .collect()
     }
 }

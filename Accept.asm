@@ -14,7 +14,7 @@
 
 .text blt 0x12..auto
     nop2 r1
-    jmp r0 abs 0x3e
+    jmp r0 abs @jump
 
 .data inp2 0x15..auto
     0x0f

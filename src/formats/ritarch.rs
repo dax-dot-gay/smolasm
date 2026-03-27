@@ -11,7 +11,7 @@ impl OutputFormatter for RitArch {
     fn assemble(assembly: crate::parser::Assembly, path: std::path::PathBuf) -> () {
         let mut output = File::create(path).unwrap();
         let mut entrypoint_address = 0u64;
-        for block in assembly.blocks {
+        for block in assembly.blocks.clone() {
             match block {
                 crate::types::AssemblyBlock::Data(DataBlock { start, entries, .. }) => {
                     let mut offset = 0u64;
@@ -56,7 +56,7 @@ impl OutputFormatter for RitArch {
                         let mut sorted_fields = fields.clone();
                         sorted_fields.sort_by_key(|f| f.output_index);
                         for field in sorted_fields {
-                            joined.extend(field.raw_value.into_inner());
+                            joined.extend(field.resolve_value(assembly.clone()).into_inner());
                         }
                         let chunks =
                             joined.to_chunks(assembly.config.system.hardware.word_size.clone());
