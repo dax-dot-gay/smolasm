@@ -142,7 +142,8 @@ impl Assembly {
                                                 input_index: target_format.index_in,
                                                 output_index: target_format.index_out,
                                                 asm_value: field.clone(),
-                                                raw_value: BitArray::from_slice(&discriminator.to_be_bytes()).trimmed(usize::try_from(selected_field.bits).unwrap()),
+                                                raw_value: Some(BitArray::from_slice(&discriminator.to_be_bytes()).trimmed(usize::try_from(selected_field.bits).unwrap())),
+                                                reference_value: None,
                                                 bits: selected_field.bits,
                                             });
                                         } else {
@@ -164,7 +165,8 @@ impl Assembly {
                                         input_index: target_format.index_in,
                                         output_index: target_format.index_out,
                                         asm_value: field.clone(),
-                                        raw_value: Self::get_bits(field.clone(), usize::try_from(selected_field.bits).unwrap()),
+                                        raw_value: Some(Self::get_bits(field.clone(), usize::try_from(selected_field.bits).unwrap())),
+                                        reference_value: None,
                                         bits: selected_field.bits,
                                     });
                                 }
@@ -211,7 +213,8 @@ impl Assembly {
                                         input_index: field.index_in,
                                         output_index: field.index_out,
                                         asm_value: format!("{default}"),
-                                        raw_value: Self::get_bits(format!("{default}"), usize::try_from(selected_field.bits).unwrap()),
+                                        raw_value: Some(Self::get_bits(format!("{default}"), usize::try_from(selected_field.bits).unwrap())),
+                                        reference_value: None,
                                         bits: selected_field.bits,
                                     })
                                 } else {

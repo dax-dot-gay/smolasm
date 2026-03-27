@@ -18,7 +18,8 @@ pub struct InstructionField {
     pub input_index: u64,
     pub output_index: u64,
     pub asm_value: String,
-    pub raw_value: BitArray,
+    pub raw_value: Option<BitArray>,
+    pub reference_value: Option<(String, i64)>,
     pub bits: u64,
 }
 
